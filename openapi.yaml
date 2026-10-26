@@ -1,0 +1,359 @@
+openapi: 3.0.3
+info:
+  title: WorkPulse AI Enterprise API
+  description: >-
+    Multi-tenant workforce management API with smart attendance, edge CCTV AI
+    biometric face verification, geofencing, AI document OCR, dynamic QR credentials,
+    and automated gross-to-net payroll engine.
+  version: 1.0.0
+  contact:
+    name: WorkPulse Engineering
+    email: api-support@workpulse.ai
+servers:
+  - url: /api/v1
+    description: Current Environment API Gateway
+  - url: https://api.workpulse.ai/v1
+    description: Production Enterprise Gateway
+
+security:
+  - BearerAuth: []
+  - TenantHeader: []
+
+paths:
+  /auth/login:
+    post:
+      summary: Authenticate User and Obtain JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: olivia.timboys@nlcorp.com
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Successful authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/register-org:
+    post:
+      summary: Onboard New Enterprise Tenant
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrgRegistrationRequest'
+      responses:
+        '201':
+          description: Organization created and tenant provisioned
+
+  /employees:
+    get:
+      summary: List Employees with Search & Filters
+      parameters:
+        - name: department
+          in: query
+          schema:
+            type: string
+        - name: workFormat
+          in: query
+          schema:
+            type: string
+            enum: [office, hybrid, remote]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of employees
+
+  /employees/{id}:
+    get:
+      summary: Get Full Employee Profile (Bento Details)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Employee profile details
+
+  /employees/{id}/onboarding-tasks:
+    patch:
+      summary: Toggle Employee Onboarding Task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [taskId, completed]
+              properties:
+                taskId:
+                  type: string
+                completed:
+                  type: boolean
+      responses:
+        '200':
+          description: Task updated and aggregate progress recalculated
+
+  /employees/{id}/digital-id:
+    get:
+      summary: Retrieve Dynamic Cryptographic ID Card & HMAC QR Token
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Digital ID Card with dynamic 30-second rotating HMAC QR
+
+  /attendance/cctv-punch:
+    post:
+      summary: Ingest CCTV Edge Biometric Verification Punch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CctvPunchRequest'
+      responses:
+        '200':
+          description: Biometric punch verified and recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CctvPunchResponse'
+
+  /attendance/mobile-punch:
+    post:
+      summary: Ingest Mobile Geofenced Clock-In Punch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GeofencedPunchRequest'
+      responses:
+        '200':
+          description: Geofence verified and recorded
+        '403':
+          description: Location is out of branch perimeter
+
+  /attendance/ledger:
+    get:
+      summary: Retrieve Real-Time Attendance Ledger
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: source
+          in: query
+          schema:
+            type: string
+            enum: [all, cctv_ai, mobile_face, qr_scan, geofence, manual]
+      responses:
+        '200':
+          description: Filtered attendance events
+
+  /cameras:
+    get:
+      summary: List CCTV Edge Nodes & Streaming Health
+      responses:
+        '200':
+          description: Active cameras with FPS, latency, and status
+
+  /cameras/{id}/roi:
+    put:
+      summary: Update Camera Region of Interest (ROI) Polygon
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                roiCoordinates:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      x: { type: number }
+                      y: { type: number }
+      responses:
+        '200':
+          description: Camera ROI updated
+
+  /payroll/calculate-run:
+    post:
+      summary: Execute Gross-to-Net Payroll Computation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [periodStart, periodEnd]
+              properties:
+                periodStart: { type: string, format: date }
+                periodEnd: { type: string, format: date }
+      responses:
+        '200':
+          description: Payroll calculation preview with itemized deductions
+
+  /payroll/approve-and-disburse:
+    post:
+      summary: Finalize and Disburse Payroll Batch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [runId]
+              properties:
+                runId: { type: string }
+      responses:
+        '200':
+          description: Disbursement batch created with SHA-256 integrity hash
+
+  /ai/document-ocr:
+    post:
+      summary: Multimodal AI Identity Document Extraction
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Structured identity fields extracted via Gemini API
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    TenantHeader:
+      type: apiKey
+      in: header
+      name: X-Tenant-ID
+
+  schemas:
+    AuthResponse:
+      type: object
+      properties:
+        token: { type: string }
+        user:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            role: { type: string }
+            email: { type: string }
+        tenant:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            tier: { type: string }
+
+    OrgRegistrationRequest:
+      type: object
+      required: [companyName, adminEmail, industry, planTier]
+      properties:
+        companyName: { type: string, example: NL Corp }
+        adminEmail: { type: string, example: admin@nlcorp.com }
+        industry: { type: string, enum: [factory, hospital, school, retail, enterprise] }
+        planTier: { type: string, enum: [individuals, teams, enterprise] }
+
+    CctvPunchRequest:
+      type: object
+      required: [cameraId, biometricVector, featureMatchConfidence]
+      properties:
+        cameraId: { type: string, example: CAM-GATE-01 }
+        biometricVector:
+          type: array
+          items: { type: number }
+          description: 512-dimension normalized Float32 embedding
+        featureMatchConfidence:
+          type: number
+          example: 0.986
+        timestamp:
+          type: string
+          format: date-time
+
+    CctvPunchResponse:
+      type: object
+      properties:
+        matched: { type: boolean }
+        employeeId: { type: string }
+        name: { type: string }
+        status: { type: string }
+        latencyMs: { type: integer, example: 14 }
+
+    GeofencedPunchRequest:
+      type: object
+      required: [employeeId, punchType, latitude, longitude]
+      properties:
+        employeeId: { type: string }
+        punchType: { type: string, enum: [check_in, check_out, break_start, break_end] }
+        latitude: { type: number, example: 48.137154 }
+        longitude: { type: number, example: 11.576124 }
+        accuracy: { type: number, example: 12 }
+
+  responses:
+    Unauthorized:
+      description: Authentication token missing, expired, or invalid.

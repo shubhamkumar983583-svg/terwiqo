@@ -1,0 +1,67 @@
+-- Migration 001: Initial Core Schema (Multi-Tenant Authorization, Users, Sessions, Audit)
+-- Up Migration
+
+CREATE TABLE IF NOT EXISTS tenants (
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(128) NOT NULL,
+  slug VARCHAR(64) UNIQUE NOT NULL,
+  industry VARCHAR(32) NOT NULL DEFAULT 'enterprise',
+  plan_tier VARCHAR(32) NOT NULL DEFAULT 'standard',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS users (
+  id VARCHAR(36) PRIMARY KEY,
+  tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name VARCHAR(128) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  phone VARCHAR(32) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  role VARCHAR(32) NOT NULL DEFAULT 'employee',
+  job_title VARCHAR(64) NOT NULL DEFAULT 'Staff Member',
+  department VARCHAR(64) NOT NULL DEFAULT 'General',
+  is_verified BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email));
+CREATE INDEX IF NOT EXISTS idx_users_tenant_role ON users (tenant_id, role);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id VARCHAR(64) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  ip_address VARCHAR(45) NOT NULL DEFAULT '',
+  user_agent TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_tenant ON sessions (tenant_id);
+
+CREATE TABLE IF NOT EXISTS otps (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  code_hash VARCHAR(255) NOT NULL,
+  purpose VARCHAR(32) NOT NULL,
+  attempts INT NOT NULL DEFAULT 0,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_otps_user_purpose ON otps (user_id, purpose);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id VARCHAR(36) PRIMARY KEY,
+  tenant_id VARCHAR(36) REFERENCES tenants(id) ON DELETE SET NULL,
+  user_id VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
+  action VARCHAR(64) NOT NULL,
+  status VARCHAR(16) NOT NULL,
+  ip_address VARCHAR(45) NOT NULL DEFAULT '',
+  details TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant ON audit_logs (tenant_id, created_at DESC);

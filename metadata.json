@@ -1,0 +1,6 @@
+{
+  "name": "WorkPulse AI",
+  "description": "Enterprise AI Workforce HRMS, Smart Attendance, CCTV Biometric AI, Geofencing & Automated Payroll SaaS",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
